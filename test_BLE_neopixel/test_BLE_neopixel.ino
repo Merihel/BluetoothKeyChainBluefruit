@@ -25,7 +25,7 @@
 #define BEACON_MINOR               "0x0000"
 #define BEACON_RSSI_1M             "-54"
 
-//Init du NeoPixel : variable "pixel"
+//Init du NeoPixel : variable pixel
 Adafruit_NeoPixel pixel = Adafruit_NeoPixel(NUMPIXELS, PIN);
 
 #define LOADING_COLOR           pixel.Color(14,79,183)
@@ -74,6 +74,18 @@ void setup() {
   }
   Serial.println( F("OK!") );
 
+  if (! ble.sendCommandCheckOK(F("AT+GAPDEVNAME='BlueKeychain'")) ) {
+    Serial.println(F("Could not set device name?"));
+  }
+
+  if (!ble.sendCommandCheckOK(F("AT+GATTADDSERVICE=UUID=0x4444")) ) {
+    Serial.println(F("Could not add new service?"));
+  }
+
+  if (!ble.sendCommandCheckOK(F("AT+GATTADDCHAR=UUID=0x125A,PROPERTIES=0x04,MIN_LEN=1,VALUE='GATT'")) ) {
+    Serial.println(F("Could not add new char?"));
+  }
+
   //Performing factory reset
   Serial.println(F("Performing a factory reset: "));
   if ( ! ble.factoryReset() ){
@@ -84,6 +96,7 @@ void setup() {
   /* Print Bluefruit information */
   ble.info();
 
+/*
   Serial.println(F("Setting beacon configuration details: "));
 
   // AT+BLEBEACON=0x004C,01-12-23-34-45-56-67-78-89-9A-AB-BC-CD-DE-EF-F0,0x0000,0x0000,-54
@@ -99,16 +112,16 @@ void setup() {
   if (! ble.waitForOK() ) {
     Serial.println(F("Didn't get the OK"));
   }
-
+  
   Serial.println();
   Serial.println(F("Open your beacon app to test"));
-
+*/
 
   Serial.println(F("Waiting for device connection"));
   Serial.println();
   
   while(!ble.isConnected()) {
-    //animateLoading(pixel, LOADING_ANIM_DELAY);
+    animateLoading(pixel, LOADING_ANIM_DELAY);
   }
   
   //Setting bluefruit in data mode
@@ -124,40 +137,30 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  uint8_t len = readPacket(&ble, 500);
-
-  ble.print(BEACON_RSSI_1M         );
-  
-  if (len == 0) return;
-  printHex(packetbuffer, len);
-
-  // Color
-  Serial.println(F("PacketBuffer: "));
-  Serial.println(packetbuffer[0]);
-  Serial.println(packetbuffer[1]);
-  Serial.println(packetbuffer[2]);
-  Serial.println(packetbuffer[3]);
-  Serial.println(packetbuffer[4]);
-  Serial.println();
-  
-  if (packetbuffer[1] == 'C') {
-    uint8_t red = packetbuffer[2];
-    uint8_t green = packetbuffer[3];
-    uint8_t blue = packetbuffer[4];
-    Serial.print ("RGB #");
-    if (red < 0x10) Serial.print("0");
-    Serial.print(red, HEX);
-    if (green < 0x10) Serial.print("0");
-    Serial.print(green, HEX);
-    if (blue < 0x10) Serial.print("0");
-    Serial.println(blue, HEX);
-
-    for(uint8_t i=0; i<NUMPIXELS; i++) {
-      pixel.setPixelColor(i, pixel.Color(red,green,blue));
-    }
-    pixel.show(); // This sends the updated pixel color to the hardware.
+// Check for incoming characters from Bluefruit
+  ble.println("AT+BLEUARTRX");
+  ble.readline();
+  if (strcmp(ble.buffer, "OK") == 0) {
+    // no data
+    return;
   }
+
+  while(ble.buffer == NULL);
+  
+  // Some data was found, its in the buffer
+  //Serial.print(F("[Recv] ")); //Serial.println(ble.buffer);
+  String buffer = ble.buffer;
+  if (buffer != NULL) {
+      if (buffer == "TEST") {
+        Serial.println(F("It was a simple test"));
+      } else if (buffer == "BLUE") {
+        pixel.setPixelColor(1, pixel.Color(8,0,255));
+      } else if (buffer == "GREEN") {
+        pixel.setPixelColor(1, pixel.Color(89,255,0));
+      }
+  }
+
+  ble.waitForOK();
 }
 
 void animateLoading(Adafruit_NeoPixel pixel, int animDelay) {
